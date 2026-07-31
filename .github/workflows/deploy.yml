@@ -57,7 +57,7 @@ jobs:
             cd /home/ubuntu/my-node-app
 
             aws ecr get-login-password \
-            --region ap-south-1 \
+            --region us-east-1 \
             | docker login \
             --username AWS \
             --password-stdin \
