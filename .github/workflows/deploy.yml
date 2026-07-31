@@ -7,7 +7,6 @@ on:
 
 jobs:
   deploy:
-    environment: AWSKEYS
     runs-on: ubuntu-latest
 
     steps:
