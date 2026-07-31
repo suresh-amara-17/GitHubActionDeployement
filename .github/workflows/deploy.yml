@@ -1,59 +1,61 @@
 name: Deploy
 
 on:
-  push:
-    branches:
-      - main
+push:
+branches:
+- main
 
 jobs:
-  deploy:
+deploy:
+runs-on: ubuntu-latest
 
-    runs-on: ubuntu-latest
+steps:
+  - uses: actions/checkout@v4
 
-    steps:
+  - name: Check secrets
+    run: |
+      echo "AWS_ACCESS_KEY_ID exists: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}"
+      echo "AWS_SECRET_ACCESS_KEY exists: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' }}"
+      echo "EC2_HOST exists: ${{ secrets.EC2_HOST != '' }}"
+      echo "EC2_SSH_KEY exists: ${{ secrets.EC2_SSH_KEY != '' }}"
 
-      - uses: actions/checkout@v4
+  - name: Configure AWS Credentials
+    uses: aws-actions/configure-aws-credentials@v4
+    with:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      aws-region: ap-south-1
 
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+  - name: Login to Amazon ECR
+    id: login-ecr
+    uses: aws-actions/amazon-ecr-login@v2
 
-      - uses: aws-actions/amazon-ecr-login@v2
-        id: login-ecr
+  - name: Build Docker Image
+    run: docker build -t my-node-app .
 
-      - name: Build Image
-        run: |
-          docker build -t my-node-app .
+  - name: Tag Docker Image
+    run: |
+      docker tag my-node-app:latest \
+      ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
 
-      - name: Tag Image
-        run: |
-          docker tag my-node-app:latest \
-          ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
+  - name: Push Docker Image
+    run: |
+      docker push \
+      ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
 
-      - name: Push Image
-        run: |
-          docker push \
-          ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
+  - name: Deploy to EC2
+    uses: appleboy/ssh-action@v1
+    with:
+      host: ${{ secrets.EC2_HOST }}
+      username: ubuntu
+      key: ${{ secrets.EC2_SSH_KEY }}
+      script: |
+        cd /home/ubuntu/app
 
-      - name: Deploy EC2
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
+        aws ecr get-login-password --region ap-south-1 | \
+        docker login --username AWS --password-stdin \
+        YOUR_ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com
 
-          script: |
-            cd /home/ubuntu/app
+        docker compose pull
+        docker compose up -d
 
-            aws ecr get-login-password \
-            --region ap-south-1 \
-            | docker login \
-            --username AWS \
-            --password-stdin \
-            123456789012.dkr.ecr.ap-south-1.amazonaws.com
-
-            docker compose pull
-
-            docker compose up -d
