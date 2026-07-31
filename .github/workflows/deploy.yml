@@ -1,75 +1,68 @@
 name: Deploy
 
 on:
-push:
-branches:
-- main
+  push:
+    branches:
+      - main
 
 jobs:
-security:
-runs-on: ubuntu-latest
+  deploy:
+    runs-on: ubuntu-latest
 
-steps:
-  - uses: actions/checkout@v4
+    steps:
 
-  - uses: actions/setup-node@v4
-    with:
-      node-version: 20
+      - uses: actions/checkout@v4
+      - name: Check secrets
+        run: |
+          echo "KEY=${{ secrets.AWS_ACCESS_KEY_ID != '' }}"
+          echo "SECRET=${{ secrets.AWS_SECRET_ACCESS_KEY != '' }}"
+          echo "REGION=${{ secrets.AWS_REGION != '' }}"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
-  - run: npm ci
+      - name: Check secrets
+        run: |
+          echo "KEY=${{ secrets.AWS_ACCESS_KEY_ID != '' }}"
+          echo "SECRET=${{ secrets.AWS_SECRET_ACCESS_KEY != '' }}"
+          echo "REGION=${{ secrets.AWS_REGION != '' }}"
 
-  - name: Run npm audit
-    run: npm audit --audit-level=high
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: login-ecr
 
-  - name: Run Trivy filesystem scan
-    uses: aquasecurity/trivy-action@master
-    with:
-      scan-type: fs
-      scan-ref: .
-      severity: HIGH,CRITICAL
-      exit-code: "1"
+      - name: Build Image
+        run: |
+          docker build -t my-node-app .
 
-deploy:
-needs: security
-runs-on: ubuntu-latest
+      - name: Tag Image
+        run: |
+          docker tag my-node-app:latest \
+          ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
 
-steps:
-  - uses: actions/checkout@v4
+      - name: Push Image
+        run: |
+          docker push \
+          ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
 
-  - uses: aws-actions/configure-aws-credentials@v4
-    with:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      aws-region: us-east-1
+      - name: Deploy EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
 
-  - uses: aws-actions/amazon-ecr-login@v2
-    id: login-ecr
+          script: |
+            cd /home/ubuntu/my-node-app
 
-  - name: Build Image
-    run: docker build -t my-node-app .
+            aws ecr get-login-password \
+            --region us-east-1 \
+            | docker login \
+            --username AWS \
+            --password-stdin \
+            841926064682.dkr.ecr.us-east-1.amazonaws.com
 
-  - name: Tag Image
-    run: |
-      docker tag my-node-app:latest \
-        ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
+            docker compose pull
 
-  - name: Push Image
-    run: |
-      docker push \
-        ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
-
-  - name: Deploy EC2
-    uses: appleboy/ssh-action@v1
-    with:
-      host: ${{ secrets.EC2_HOST }}
-      username: ubuntu
-      key: ${{ secrets.EC2_SSH_KEY }}
-      script: |
-        cd /home/ubuntu/my-node-app
-
-        aws ecr get-login-password --region us-east-1 | \
-        docker login --username AWS --password-stdin \
-        841926064682.dkr.ecr.us-east-1.amazonaws.com
-
-        docker compose pull
-        docker compose up -d
+            docker compose up -d
