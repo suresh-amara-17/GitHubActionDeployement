@@ -9,6 +9,7 @@ jobs:
 deploy:
 runs-on: ubuntu-latest
 
+```
 steps:
   - uses: actions/checkout@v4
 
@@ -36,12 +37,12 @@ steps:
   - name: Tag Docker Image
     run: |
       docker tag my-node-app:latest \
-      ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
+        ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
 
   - name: Push Docker Image
     run: |
       docker push \
-      ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
+        ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
 
   - name: Deploy to EC2
     uses: appleboy/ssh-action@v1
@@ -58,4 +59,4 @@ steps:
 
         docker compose pull
         docker compose up -d
-
+```
