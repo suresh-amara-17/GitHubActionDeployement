@@ -27,14 +27,12 @@ steps:
       scan-type: fs
       scan-ref: .
       severity: HIGH,CRITICAL
-      exit-code: 1
-```
+      exit-code: "1"
 
 deploy:
 needs: security
 runs-on: ubuntu-latest
 
-```
 steps:
   - uses: actions/checkout@v4
 
@@ -53,12 +51,12 @@ steps:
   - name: Tag Image
     run: |
       docker tag my-node-app:latest \
-      ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
+        ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
 
   - name: Push Image
     run: |
       docker push \
-      ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
+        ${{ steps.login-ecr.outputs.registry }}/my-node-app:latest
 
   - name: Deploy EC2
     uses: appleboy/ssh-action@v1
