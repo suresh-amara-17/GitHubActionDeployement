@@ -54,7 +54,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
 
           script: |
-            cd /home/ubuntu/app
+            cd /home/ubuntu/my-node-app
 
             aws ecr get-login-password \
             --region ap-south-1 \
